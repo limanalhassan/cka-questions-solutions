@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-static
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx-static
+data:
+  nginx.conf: |
+    events {}
+
+    http {
+      server {
+        listen 443 ssl;
+        server_name web.k8s.local;
+
+        ssl_certificate     /etc/nginx/ssl/tls.crt;
+        ssl_certificate_key /etc/nginx/ssl/tls.key;
+
+        # ❌ current setting (allows TLS 1.2)
+        ssl_protocols TLSv1.2 TLSv1.3;
+
+        location / {
+          return 200 "Welcome to nginx-static!\n";
+        }
+      }
+    }
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-static
+  namespace: nginx-static
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-static
+  template:
+    metadata:
+      labels:
+        app: nginx-static
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 443
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: nginx-cert
+          mountPath: /etc/nginx/ssl
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: nginx-config
+      - name: nginx-cert
+        secret:
+          secretName: nginx-tls
+

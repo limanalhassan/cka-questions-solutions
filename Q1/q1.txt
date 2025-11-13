@@ -1,0 +1,16 @@
+CREATE THE PROBLEM
+
+make all
+
+Run the below to test before fixing
+
+make restart
+make forward
+
+Run the below to confirm
+
+curl -k --tls-max 1.3 https://localhost:8443
+
+curl -k --tls-max 1.2 https://localhost:8443
+
+After solving the riddle, re-run the above, "curl -k --tls-max 1.2 https://localhost:8443" should throw an error
