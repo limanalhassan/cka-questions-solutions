@@ -1,0 +1,16 @@
+# PriorityClass: high-priority
+# Value must be one less than the highest existing user-defined priority class value
+# Highest existing: default-priority (1000)
+# Therefore: high-priority = 1000 - 1 = 999
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+value: 999
+description: "High priority class for user-workloads"
+globalDefault: false
+---
+# Patch for busybox-logger deployment
+# Note: This is a reference. Use kubectl patch to apply:
+# kubectl patch deployment busybox-logger -n priority -p '{"spec":{"template":{"spec":{"priorityClassName":"high-priority"}}}}'
+

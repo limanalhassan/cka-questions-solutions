@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: priority
+---
+# Existing PriorityClass examples (to determine highest value)
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: low-priority
+value: 100
+description: "Low priority class for testing"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: medium-priority
+value: 500
+description: "Medium priority class for testing"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: default-priority
+value: 1000
+description: "Default priority class for testing"
+---
+# Deployment that will use high-priority (to be patched)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-logger
+  namespace: priority
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: busybox-logger
+  template:
+    metadata:
+      labels:
+        app: busybox-logger
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.36
+        command: ["sh", "-c", "while true; do echo 'Logger running...'; sleep 30; done"]
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+# Other deployments with lower priority (will be evicted)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: low-priority-app
+  namespace: priority
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: low-priority-app
+  template:
+    metadata:
+      labels:
+        app: low-priority-app
+    spec:
+      priorityClassName: low-priority
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medium-priority-app
+  namespace: priority
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: medium-priority-app
+  template:
+    metadata:
+      labels:
+        app: medium-priority-app
+    spec:
+      priorityClassName: medium-priority
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
