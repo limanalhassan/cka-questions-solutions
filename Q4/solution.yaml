@@ -1,0 +1,18 @@
+# Flannel CNI v0.26.1
+# This file contains the Flannel CNI manifest
+# To use this solution, run: kubectl apply -f https://github.com/flannel-io/flannel/releases/download/v0.26.1/kube-flannel.yml
+#
+# Alternatively, for Calico v3.28.2, use:
+# kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/tigera-operator.yaml
+# kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml
+#
+# Note: CNI manifests are large and should be applied directly from the source URLs.
+# This file serves as a reference for the installation commands.
+
+# For Flannel (v0.26.1):
+# kubectl apply -f https://github.com/flannel-io/flannel/releases/download/v0.26.1/kube-flannel.yml
+
+# For Calico (v3.28.2):
+# kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/tigera-operator.yaml
+# kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml
+
