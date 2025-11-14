@@ -1,0 +1,21 @@
+# Argo CD Installation Solution
+# 
+# Step 1: Add Helm repository
+# helm repo add argo https://argoproj.github.io/argo-helm
+# helm repo update
+#
+# Step 2: Generate template (CRDs disabled)
+# helm template argocd argo/argo-cd --version 7.7.3 \
+#   --namespace argocd \
+#   --create-namespace \
+#   --skip-crds > /argo-helm.yaml
+#
+# Step 3: Install Argo CD (CRDs disabled)
+# helm install argocd argo/argo-cd --version 7.7.3 \
+#   --namespace argocd \
+#   --create-namespace \
+#   --skip-crds
+#
+# Note: The template file should be saved to /argo-helm.yaml (root filesystem)
+# This is typically done on the exam system, not in the cluster.
+
