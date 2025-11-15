@@ -1,0 +1,80 @@
+# Solution for Q8: Sidecar Container for Logging
+#
+# Step 1: Patch the deployment to add:
+#   - A shared volume (emptyDir)
+#   - Volume mount in the existing container
+#   - Sidecar container with volume mount
+#
+# Using kubectl patch:
+# kubectl patch deployment synergy-deployment -n synergy --type='json' \
+#   -p='[
+#     {"op": "add", "path": "/spec/template/spec/volumes", "value": [{"name": "log-volume", "emptyDir": {}}]},
+#     {"op": "add", "path": "/spec/template/spec/containers/0/volumeMounts", "value": [{"name": "log-volume", "mountPath": "/var/log"}]},
+#     {"op": "add", "path": "/spec/template/spec/containers/-", "value": {
+#       "name": "sidecar",
+#       "image": "busybox:stable",
+#       "command": ["/bin/sh", "-c"],
+#       "args": ["tail -n+l -f /var/log/synergy-deployment.log"],
+#       "volumeMounts": [{"name": "log-volume", "mountPath": "/var/log"}]
+#     }}
+#   ]'
+#
+# OR using kubectl edit:
+# kubectl edit deployment synergy-deployment -n synergy
+# Then add:
+#   - volumes section with emptyDir
+#   - volumeMounts to existing container
+#   - sidecar container with volumeMounts
+
+---
+# Complete deployment with sidecar (for reference)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synergy-deployment
+  namespace: synergy
+  labels:
+    app: synergy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: synergy
+  template:
+    metadata:
+      labels:
+        app: synergy
+    spec:
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+      containers:
+      - name: app
+        image: nginx:1.25
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            mkdir -p /var/log
+            while true; do
+              echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [INFO] Legacy application log entry" >> /var/log/synergy-deployment.log
+              sleep 5
+            done
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      - name: sidecar
+        image: busybox:stable
+        command: ["/bin/sh", "-c"]
+        args:
+          - tail -n+l -f /var/log/synergy-deployment.log
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+
