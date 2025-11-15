@@ -1,0 +1,25 @@
+# Solution for Q11: cert-manager CRD Documentation
+#
+# Task 1: Create a list of cert-manager CRDs
+# IMPORTANT: Use default kubectl output format (DO NOT use --output flag)
+# kubectl get crd | grep cert-manager > ~/resources.yaml
+#
+# OR using kubectl api-resources:
+# kubectl api-resources --api-group=cert-manager.io -o name > ~/resources.yaml
+#
+# Note: The task requires default output format. Do not use -o or --output flags.
+#
+# Task 2: Extract documentation for 'subject' field of Certificate CRD
+# You may use any output format for this task
+# kubectl explain certificate.spec.subject > ~/subject.yaml
+#
+# OR with more detail:
+# kubectl explain certificate.spec.subject --recursive > ~/subject.yaml
+#
+# OR using yaml format:
+# kubectl explain certificate.spec.subject -o yaml > ~/subject.yaml
+#
+# Verification:
+# cat ~/resources.yaml
+# cat ~/subject.yaml
+

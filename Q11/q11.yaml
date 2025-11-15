@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
+# Note: cert-manager should be installed in the cluster
+# This file sets up a namespace for reference
+# The actual cert-manager installation should be done separately
+# For testing, you can install cert-manager using:
+# kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
