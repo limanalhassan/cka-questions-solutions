@@ -1,0 +1,33 @@
+# Solution for Q9: StorageClass Configuration
+#
+# Step 1: Create the low-latency StorageClass
+# kubectl apply -f - <<EOF
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: low-latency
+#   annotations:
+#     storageclass.kubernetes.io/is-default-class: "true"
+# provisioner: rancher.io/local-path
+# volumeBindingMode: WaitForFirstConsumer
+# EOF
+#
+# Step 2: Remove default annotation from existing default StorageClass
+# kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+#
+# Step 3: Verify the new StorageClass is default
+# kubectl get storageclass
+#
+# Note: The solution creates the StorageClass with the default annotation.
+# You may need to remove the default annotation from the existing default StorageClass.
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: low-latency
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+
