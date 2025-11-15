@@ -1,0 +1,40 @@
+# Solution for Q7: Deployment Port Configuration and NodePort Service
+#
+# Step 1: Reconfigure the Deployment to expose port 80/tcp
+# kubectl patch deployment front-end -n sp-culator --type='json' \
+#   -p='[{"op": "add", "path": "/spec/template/spec/containers/0/ports", "value": [{"containerPort": 80, "protocol": "TCP"}]}]'
+#
+# Step 2: Create a NodePort Service
+# kubectl create service nodeport front-end-svc -n sp-culator \
+#   --tcp=80:80 \
+#   --dry-run=client -o yaml | kubectl apply -f -
+#
+# OR using kubectl expose:
+# kubectl expose deployment front-end -n sp-culator \
+#   --name=front-end-svc \
+#   --port=80 \
+#   --target-port=80 \
+#   --type=NodePort
+#
+# Step 3: Verify the configuration
+# kubectl get deployment front-end -n sp-culator -o yaml | grep -A 5 ports
+# kubectl get svc front-end-svc -n sp-culator
+# kubectl get pods -n sp-culator -l app=front-end
+
+---
+# Alternative: Complete YAML for the Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: front-end-svc
+  namespace: sp-culator
+spec:
+  type: NodePort
+  selector:
+    app: front-end
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    nodePort: 30080  # Kubernetes will assign a random port if not specified
+
