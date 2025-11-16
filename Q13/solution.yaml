@@ -1,0 +1,76 @@
+# Solution for Q13: NetworkPolicy Configuration
+#
+# Task: Choose and apply a NetworkPolicy from ~/netpol folder that:
+#   1. Allows communication between frontend and backend
+#   2. Is as restrictive as possible (least permissive)
+#   3. Does NOT delete or change existing deny-all network policies
+#
+# Step 1: Inspect the deployments to understand communication requirements
+# kubectl get deploy frontend -n frontend -o yaml
+# kubectl get deploy backend -n backend -o yaml
+# kubectl get svc backend -n backend
+#
+# Step 2: List available NetworkPolicy files
+# ls -la ~/netpol/
+#
+# Step 3: Review the NetworkPolicy files to find the most restrictive one
+# cat ~/netpol/*.yaml
+#
+# Step 4: Apply the chosen NetworkPolicy
+# kubectl apply -f ~/netpol/<chosen-file>.yaml
+#
+# Step 5: Verify communication
+# kubectl exec -n frontend <frontend-pod> -- curl -s http://backend.backend.svc.cluster.local:8080
+
+---
+# Example: Most restrictive NetworkPolicy that allows frontend->backend communication
+# This allows:
+# - Frontend pods to egress to backend pods on port 8080
+# - Backend pods to ingress from frontend pods on port 8080
+# - Nothing else (most restrictive)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-backend
+  namespace: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: backend
+      podSelector:
+        matchLabels:
+          app: backend
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-backend
+  namespace: backend
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: frontend
+      podSelector:
+        matchLabels:
+          app: frontend
+    ports:
+    - protocol: TCP
+      port: 8080
+
