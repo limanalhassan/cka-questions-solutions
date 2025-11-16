@@ -27,7 +27,8 @@ all: clean setup
 setup:
 	@echo "\n🔧 Setting up $(QUESTION) environment..."
 	@echo "→ Ensuring PV is available (clearing claimRef if needed)..."
-	-kubectl patch pv $(PV_NAME) --type=json -p='[{"op": "remove", "path": "/spec/claimRef"}]' --ignore-not-found 2>/dev/null || true
+	-kubectl patch pv $(PV_NAME) --type=merge -p='{"spec":{"claimRef":null}}' --ignore-not-found 2>/dev/null || true
+	-sleep 2
 	kubectl apply -f $(YAML)
 	@echo "\n📝 Creating MariaDB deployment file at $(DEPLOYMENT_FILE)..."
 	@mkdir -p $$(dirname $(DEPLOYMENT_FILE))
@@ -86,16 +87,35 @@ solution:
 	@echo "   Waiting for PVC deletion to complete..."
 	-sleep 3
 	@echo "   Clearing PV claimRef..."
-	-kubectl patch pv $(PV_NAME) --type=json -p='[{"op": "remove", "path": "/spec/claimRef"}]' --ignore-not-found 2>/dev/null || true
+	-kubectl patch pv $(PV_NAME) --type=merge -p='{"spec":{"claimRef":null}}' --ignore-not-found 2>/dev/null || true
 	@echo "   Waiting for PV to become Available..."
-	@for i in 1 2 3 4 5; do \
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		PV_STATUS=$$(kubectl get pv $(PV_NAME) -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown"); \
 		if [ "$$PV_STATUS" = "Available" ]; then \
 			echo "   ✅ PV is Available"; \
 			break; \
 		fi; \
-		echo "   Waiting for PV to become Available (current: $$PV_STATUS)..."; \
-		sleep 2; \
+		if [ $$i -eq 5 ]; then \
+			echo "   Retrying patch (attempt 2)..."; \
+			kubectl patch pv $(PV_NAME) --type=merge -p='{"spec":{"claimRef":null}}' 2>/dev/null || true; \
+		fi; \
+		if [ $$i -eq 10 ]; then \
+			echo "   ⚠️  PV still not Available after 20 seconds, trying alternative method..."; \
+			kubectl get pv $(PV_NAME) -o json 2>/dev/null | sed 's/"claimRef":{[^}]*},//' | kubectl replace -f - 2>/dev/null || \
+			kubectl patch pv $(PV_NAME) --type=merge -p='{"spec":{"claimRef":null}}' 2>/dev/null || true; \
+			sleep 3; \
+			PV_STATUS=$$(kubectl get pv $(PV_NAME) -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown"); \
+			if [ "$$PV_STATUS" = "Available" ]; then \
+				echo "   ✅ PV is now Available"; \
+				break; \
+			else \
+				echo "   ⚠️  PV status is still '$$PV_STATUS', proceeding anyway..."; \
+			fi; \
+		fi; \
+		if [ $$i -lt 10 ]; then \
+			echo "   Waiting for PV to become Available (current: $$PV_STATUS, attempt $$i/10)..."; \
+			sleep 2; \
+		fi; \
 	done
 	@echo "\n   Task 1: Creating PersistentVolumeClaim '$(PVC_NAME)'..."
 	@echo "apiVersion: v1" > /tmp/pvc-$(PVC_NAME).yaml && \
@@ -305,22 +325,12 @@ clean:
 	-kubectl delete pvc $(PVC_NAME) -n $(NAMESPACE) --ignore-not-found
 	@echo "→ Waiting for PVC deletion to complete..."
 	-sleep 3
-	@echo "→ Clearing PV claimRef (to make it Available again)..."
-	-kubectl patch pv $(PV_NAME) --type=json -p='[{"op": "remove", "path": "/spec/claimRef"}]' --ignore-not-found
-	@echo "→ Waiting for PV to become Available..."
-	@for i in 1 2 3 4 5; do \
-		PV_STATUS=$$(kubectl get pv $(PV_NAME) -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown"); \
-		if [ "$$PV_STATUS" = "Available" ]; then \
-			echo "   ✅ PV is Available"; \
-			break; \
-		fi; \
-		echo "   Waiting for PV to become Available (current: $$PV_STATUS)..."; \
-		sleep 2; \
-	done
+	@echo "→ Deleting PersistentVolume..."
+	-kubectl delete pv $(PV_NAME) --ignore-not-found
 	@echo "→ Deleting namespace..."
 	-kubectl delete ns $(NAMESPACE) --ignore-not-found
 	@echo "→ Removing deployment file..."
 	-rm -f $(DEPLOYMENT_FILE)
-	@echo "→ Note: PersistentVolume '$(PV_NAME)' is retained and available for reuse"
+	@echo "→ Note: PV will be recreated on next 'make setup'"
 	@echo "✅ Cleanup completed for $(QUESTION).\n"
 
