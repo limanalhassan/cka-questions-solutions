@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mariadb
+---
+# PersistentVolume that already exists and is retained for reuse
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mariadb-pv
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 500Mi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /tmp/mariadb-data
+  persistentVolumeReclaimPolicy: Retain
+---
+# Initial MariaDB Deployment file template (will be created at ~/mariadb-deploy.yaml)
+# This represents the deployment that was accidentally deleted
+# The deployment file will be created by the Makefile setup target
+

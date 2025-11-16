@@ -1,0 +1,83 @@
+# Solution for Q12: MariaDB Deployment Recovery with PersistentVolume
+#
+# Task 1: Create PersistentVolumeClaim
+# kubectl apply -f - <<EOF
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: mariadb
+#   namespace: mariadb
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 250Mi
+# EOF
+#
+# Task 2: Edit ~/mariadb-deploy.yaml to use the PVC
+# The deployment should reference the PVC in volumes section:
+# volumes:
+# - name: mariadb-data
+#   persistentVolumeClaim:
+#     claimName: mariadb
+#
+# Task 3: Apply the updated deployment
+# kubectl apply -f ~/mariadb-deploy.yaml
+#
+# Task 4: Verify deployment is running and stable
+# kubectl get deployment mariadb -n mariadb
+# kubectl get pods -n mariadb
+# kubectl rollout status deployment/mariadb -n mariadb
+
+---
+# PersistentVolumeClaim solution
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb
+  namespace: mariadb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 250Mi
+---
+# Complete MariaDB Deployment with PVC (for reference)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb
+  namespace: mariadb
+  labels:
+    app: mariadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+      - name: mariadb
+        image: mariadb:10.11
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "rootpassword"
+        - name: MYSQL_DATABASE
+          value: "mydb"
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mariadb-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mariadb-data
+        persistentVolumeClaim:
+          claimName: mariadb
+
