@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=========================================="
-echo "Q14: End-to-End Kubeadm Cluster Setup"
+echo "End-to-End Kubeadm Cluster Setup"
 echo "Using Multipass"
 echo "==========================================${NC}"
 echo ""
@@ -268,7 +268,7 @@ for i in $(seq 1 $NUM_WORKERS); do
 done
 echo "   multipass purge"
 echo ""
-echo -e "${YELLOW}💡 For the Q14 lab, you can now run 'make break-cluster' on the control plane VM${NC}"
+echo -e "${YELLOW}💡 You can now access the control plane VM:${NC}"
 echo "   multipass shell $CONTROL_PLANE_VM"
 echo "   cd /home/ubuntu"
 echo "   sudo bash break-cluster.sh"

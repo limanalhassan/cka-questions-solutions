@@ -5,7 +5,7 @@
 set -e
 
 echo "=========================================="
-echo "Q14: Add Worker Node to Kubeadm Cluster"
+echo "Add Worker Node to Kubeadm Cluster"
 echo "=========================================="
 echo ""
 

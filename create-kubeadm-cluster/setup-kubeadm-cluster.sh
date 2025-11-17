@@ -1,11 +1,11 @@
 #!/bin/bash
-# Setup script for creating a kubeadm cluster for Q14 lab
+# Setup script for creating a kubeadm cluster
 # This script provides instructions and automation for setting up a kubeadm cluster
 
 set -e
 
 echo "=========================================="
-echo "Q14: Kubeadm Cluster Setup"
+echo "Kubeadm Cluster Setup"
 echo "=========================================="
 echo ""
 
@@ -315,10 +315,9 @@ fi
     
     echo "✅ Setup complete!"
     echo ""
-    echo "⚠️  Note: For the Q14 lab, you'll need to:"
-    echo "   1. Install a CNI plugin"
-    echo "   2. Run the break-cluster.sh script to simulate migration issues"
-    echo "   3. Then fix the issues as per the lab instructions"
+    echo "⚠️  Next steps:"
+    echo "   1. Install a CNI plugin (e.g., flannel or calico)"
+    echo "   2. Join worker nodes if needed"
 }
 
 # Run main function

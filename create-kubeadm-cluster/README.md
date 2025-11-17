@@ -42,9 +42,9 @@ make clean
 - `break-cluster.sh` - Script to simulate cluster migration issues
 - `fix-cluster.sh` - Script to fix broken clusters (if available)
 
-## Relationship to Q14
+## Standalone Utility
 
-The Q14 lab (Kubeadm Cluster Migration Troubleshooting) uses similar scripts but has its own copies for the lab-specific workflow. This folder is a standalone utility that can be used independently.
+This folder is a standalone utility for creating and managing kubeadm clusters. It can be used independently for any kubeadm cluster setup needs.
 
 ## Requirements
 
