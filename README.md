@@ -60,7 +60,7 @@ Each lab includes:
 ### Optional Tools
 
 - **curl** - For testing HTTP endpoints
-- **openssl** - For certificate generation (Q1)
+- **openssl** - For certificate generation (Q01)
 - **Multipass** - For Q14 kubeadm cluster setup (macOS/Windows)
 - **jq** - For JSON parsing (some labs)
 
@@ -99,7 +99,7 @@ This will:
 
 ```bash
 # Navigate to a lab directory
-cd Q1
+cd Q01
 
 # Set up the lab environment
 make setup
@@ -121,14 +121,14 @@ CKA/
 ├── README.md                    # This file
 ├── Makefile                     # Root Makefile for managing all labs
 │
-├── Q1/                          # NGINX TLSv1.3 Configuration
+├── Q01/                          # NGINX TLSv1.3 Configuration
 │   ├── README.md
 │   ├── Makefile
 │   ├── q1.yaml
 │   ├── solution.yaml
-│   └── Q1.jpg
+│   └── Q01.jpg
 │
-├── Q2/                          # Lab 2
+├── Q02/                          # Lab 2
 │   └── ...
 │
 ├── Q12/                         # MariaDB PersistentVolume Recovery
@@ -163,13 +163,13 @@ CKA/
 
 ## 📚 Available Labs
 
-### Q1: NGINX TLSv1.3 Configuration
+### Q01: NGINX TLSv1.3 Configuration
 **Topic**: ConfigMaps, TLS Configuration  
 **Difficulty**: ⭐⭐  
 **Time**: 10-15 minutes  
 **Focus**: Update NGINX ConfigMap to allow only TLSv1.3 connections
 
-### Q2-Q11: [Various Topics]
+### Q02-Q11: [Various Topics]
 *Check individual lab READMEs for details*
 
 ### Q12: MariaDB PersistentVolume Recovery
@@ -205,7 +205,7 @@ make help
 make setup
 
 # Set up a specific lab
-make setup-Q1
+make setup-Q01
 make setup-Q12
 make setup-Q13
 
@@ -213,10 +213,10 @@ make setup-Q13
 make clean
 
 # Clean up a specific lab
-make clean-Q1
+make clean-Q01
 
 # Apply solution to a specific lab
-make solution-Q1
+make solution-Q01
 
 # Check status of all labs
 make status
@@ -225,8 +225,8 @@ make status
 ### Examples
 
 ```bash
-# Set up labs Q1, Q12, and Q13
-make setup-Q1 setup-Q12 setup-Q13
+# Set up labs Q01, Q12, and Q13
+make setup-Q01 setup-Q12 setup-Q13
 
 # Clean up everything and start fresh
 make clean
@@ -266,7 +266,7 @@ make help
 
 Some labs have additional targets:
 
-- **Q1**: `make cert`, `make deploy`, `make forward`, `make test`
+- **Q01**: `make cert`, `make deploy`, `make forward`, `make test`
 - **Q12**: `make verify`, `make check-pv`
 - **Q13**: `make verify`, `make test-communication`
 - **Q14**: `make setup-cluster`, `make break`, `make fix`, `make cluster`
