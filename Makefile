@@ -6,7 +6,7 @@
 # Find all Q* directories
 Q_DIRS := $(shell find . -maxdepth 1 -type d -name 'Q*' | sort)
 
-# Extract question numbers (Q1, Q2, etc.)
+# Extract question numbers (Q01, Q02, etc.)
 QUESTIONS := $(shell echo $(Q_DIRS) | sed 's|./||g' | tr ' ' '\n' | sort -V)
 
 .PHONY: help all setup clean solution status
