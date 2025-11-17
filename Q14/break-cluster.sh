@@ -133,10 +133,9 @@ systemctl restart kubelet
 echo "   ⏳ Waiting for pods to be recreated with broken configuration..."
 sleep 15
 
-# Also delete controller manager and scheduler to ensure they're recreated
-echo "🗑️  Deleting other control plane pods (if still accessible)..."
-kubectl delete pod -n kube-system kube-controller-manager-kubeadm-cp --force --grace-period=0 2>/dev/null || true
-kubectl delete pod -n kube-system kube-scheduler-kubeadm-cp --force --grace-period=0 2>/dev/null || true
+# Note: We can't use kubectl here because the API server is already broken
+# The pods will be recreated by kubelet automatically with the broken config
+echo "   ✅ Pods will be recreated by kubelet with broken configuration"
 sleep 5
 
 echo ""

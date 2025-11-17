@@ -112,14 +112,26 @@ sleep 10
 
 # Wait for API server to be ready
 echo "⏳ Waiting for API server to be ready..."
+API_READY=0
 for i in {1..30}; do
-    if kubectl get nodes &>/dev/null; then
+    # Use kubectl with --request-timeout if available, otherwise just try
+    if kubectl --request-timeout=3s get nodes &>/dev/null 2>&1 || \
+       (kubectl get nodes &>/dev/null 2>&1 & KUBECTL_PID=$!; sleep 3; kill $KUBECTL_PID 2>/dev/null; wait $KUBECTL_PID 2>/dev/null); then
         echo "   ✅ API server is responding"
+        API_READY=1
         break
     fi
-    echo "   Waiting... ($i/30)"
+    if [ $((i % 5)) -eq 0 ]; then
+        echo "   Waiting... ($i/30)"
+    else
+        echo -n "."
+    fi
     sleep 2
 done
+echo ""
+if [ $API_READY -eq 0 ]; then
+    echo "   ⚠️  API server may still be starting, continuing anyway..."
+fi
 
 echo ""
 echo "✅ Cluster fixes applied!"
@@ -127,13 +139,25 @@ echo ""
 echo "📋 Verifying cluster status..."
 echo ""
 
-# Check node status
+# Check node status (try with timeout, but don't hang)
 echo "Nodes:"
-kubectl get nodes || echo "   ⚠️  kubectl not working yet, may need more time"
+if kubectl --request-timeout=5s get nodes 2>/dev/null; then
+    echo ""
+elif kubectl get nodes 2>/dev/null; then
+    echo ""
+else
+    echo "   ⚠️  kubectl not working yet, may need more time"
+fi
 
 echo ""
 echo "Control plane pods:"
-kubectl get pods -n kube-system 2>/dev/null || echo "   ⚠️  kubectl not working yet, may need more time"
+if kubectl --request-timeout=5s get pods -n kube-system 2>/dev/null; then
+    echo ""
+elif kubectl get pods -n kube-system 2>/dev/null; then
+    echo ""
+else
+    echo "   ⚠️  kubectl not working yet, may need more time"
+fi
 
 echo ""
 echo "📖 If nodes are still NotReady, wait a bit longer and check:"

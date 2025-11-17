@@ -71,27 +71,97 @@ if [ "$NUM_WORKERS" -gt 0 ]; then
     echo ""
 fi
 
+# Wait for VMs to be ready
+echo -e "${YELLOW}⏳ Waiting for VMs to be ready...${NC}"
+sleep 10
+
+# Wait for control plane VM to be ready (running with IP)
+echo -e "${YELLOW}⏳ Waiting for control plane VM to be ready...${NC}"
+MAX_RETRIES=30
+RETRY_COUNT=0
+VM_READY=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ $VM_READY -eq 0 ]; do
+    # Check if VM is running and has an IP address
+    VM_STATUS=$(multipass info "$CONTROL_PLANE_VM" 2>/dev/null | grep "State:" | awk '{print $2}' || echo "")
+    VM_IP=$(multipass info "$CONTROL_PLANE_VM" 2>/dev/null | grep "IPv4:" | awk '{print $2}' || echo "")
+    
+    if [ "$VM_STATUS" = "Running" ] && [ -n "$VM_IP" ]; then
+        VM_READY=1
+        break
+    fi
+    
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $((RETRY_COUNT % 5)) -eq 0 ]; then
+        echo -n " [${RETRY_COUNT}s]"
+    else
+        echo -n "."
+    fi
+    sleep 2
+done
+echo ""
+if [ $VM_READY -eq 0 ]; then
+    echo -e "${RED}❌ Control plane VM not ready after $MAX_RETRIES retries${NC}"
+    echo -e "${YELLOW}   VM status:${NC}"
+    multipass info "$CONTROL_PLANE_VM" || true
+    exit 1
+fi
+echo -e "${GREEN}✅ Control plane VM is ready${NC}"
+echo ""
+
 # Get control plane IP
 echo -e "${BLUE}📡 Getting control plane IP...${NC}"
 CP_IP=$(multipass info "$CONTROL_PLANE_VM" | grep IPv4 | awk '{print $2}')
+if [ -z "$CP_IP" ]; then
+    echo -e "${YELLOW}⚠️  IP not available yet, waiting...${NC}"
+    sleep 5
+    CP_IP=$(multipass info "$CONTROL_PLANE_VM" | grep IPv4 | awk '{print $2}')
+fi
 echo -e "${GREEN}✅ Control plane IP: $CP_IP${NC}"
 echo ""
 
-# Transfer scripts to control plane
+# Transfer scripts to control plane with retry
 echo -e "${BLUE}📤 Transferring scripts to control plane VM...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-multipass transfer "${SCRIPT_DIR}/setup-kubeadm-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/"
-multipass transfer "${SCRIPT_DIR}/break-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/"
-multipass transfer "${SCRIPT_DIR}/fix-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/"
-echo -e "${GREEN}✅ Scripts transferred${NC}"
+RETRY_COUNT=0
+MAX_TRANSFER_RETRIES=5
+while [ $RETRY_COUNT -lt $MAX_TRANSFER_RETRIES ]; do
+    if multipass transfer "${SCRIPT_DIR}/setup-kubeadm-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/" 2>/dev/null && \
+       multipass transfer "${SCRIPT_DIR}/break-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/" 2>/dev/null && \
+       multipass transfer "${SCRIPT_DIR}/fix-cluster.sh" "${CONTROL_PLANE_VM}:/home/ubuntu/" 2>/dev/null; then
+        echo -e "${GREEN}✅ Scripts transferred${NC}"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -lt $MAX_TRANSFER_RETRIES ]; then
+        echo -e "${YELLOW}⚠️  Transfer failed, retrying ($RETRY_COUNT/$MAX_TRANSFER_RETRIES)...${NC}"
+        sleep 3
+    else
+        echo -e "${RED}❌ Failed to transfer scripts after $MAX_TRANSFER_RETRIES retries${NC}"
+        exit 1
+    fi
+done
 echo ""
 
-# Transfer scripts to worker VMs
+# Transfer scripts to worker VMs with retry
 if [ "$NUM_WORKERS" -gt 0 ]; then
     echo -e "${BLUE}📤 Transferring scripts to worker VMs...${NC}"
     for i in $(seq 1 $NUM_WORKERS); do
-        multipass transfer "${SCRIPT_DIR}/add-worker-node.sh" "${WORKER_VM_PREFIX}-${i}:/home/ubuntu/"
-        echo -e "${GREEN}✅ Scripts transferred to worker ${i}${NC}"
+        RETRY_COUNT=0
+        MAX_TRANSFER_RETRIES=5
+        while [ $RETRY_COUNT -lt $MAX_TRANSFER_RETRIES ]; do
+            if multipass transfer "${SCRIPT_DIR}/add-worker-node.sh" "${WORKER_VM_PREFIX}-${i}:/home/ubuntu/" 2>/dev/null; then
+                echo -e "${GREEN}✅ Scripts transferred to worker ${i}${NC}"
+                break
+            fi
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_TRANSFER_RETRIES ]; then
+                echo -e "${YELLOW}⚠️  Transfer to worker ${i} failed, retrying ($RETRY_COUNT/$MAX_TRANSFER_RETRIES)...${NC}"
+                sleep 3
+            else
+                echo -e "${RED}❌ Failed to transfer scripts to worker ${i} after $MAX_TRANSFER_RETRIES retries${NC}"
+                exit 1
+            fi
+        done
     done
     echo ""
 fi
