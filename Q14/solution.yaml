@@ -1,0 +1,161 @@
+# Solution for Q14: Kubeadm Cluster Migration Troubleshooting
+#
+# Task: Fix a single-node kubeadm cluster that broke during machine migration
+# The cluster used an external etcd server
+#
+# Step-by-step solution:
+#
+# 1. IDENTIFY BROKEN COMPONENTS
+# ==============================
+# Check cluster status:
+# kubectl get nodes
+# kubectl get pods -n kube-system
+# systemctl status kubelet
+# journalctl -u kubelet -n 100
+#
+# Check API server logs:
+# journalctl -u kubelet -n 200 | grep -i "apiserver\|etcd\|error"
+#
+# Check static pod manifests:
+# ls -la /etc/kubernetes/manifests/
+# cat /etc/kubernetes/manifests/kube-apiserver.yaml
+# cat /etc/kubernetes/manifests/kube-controller-manager.yaml
+# cat /etc/kubernetes/manifests/kube-scheduler.yaml
+#
+# 2. IDENTIFY COMMON ISSUES
+# =========================
+# Issue 1: etcd endpoints pointing to old machine IP
+#   - Check: /etc/kubernetes/manifests/kube-apiserver.yaml
+#   - Look for: --etcd-servers=https://OLD-IP:2379
+#   - Fix: Update to new etcd server IP
+#
+# Issue 2: API server certificate SANs missing new IP
+#   - Check: /etc/kubernetes/manifests/kube-apiserver.yaml
+#   - Look for: --tls-cert-file and certificate SANs
+#   - Fix: Update certificate or regenerate with new IP
+#
+# Issue 3: kubelet configuration pointing to old API server
+#   - Check: /etc/kubernetes/kubelet.conf
+#   - Look for: server: https://OLD-IP:6443
+#   - Fix: Update to new control plane IP
+#
+# Issue 4: Admin kubeconfig with old server address
+#   - Check: /etc/kubernetes/admin.conf
+#   - Check: /root/.kube/config
+#   - Look for: server: https://OLD-IP:6443
+#   - Fix: Update server address
+#
+# 3. FIX CONFIGURATIONS
+# =====================
+#
+# Fix etcd endpoints in API server manifest:
+# sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
+#   Update: --etcd-servers=https://NEW-ETCD-IP:2379
+#
+# Fix API server certificate SANs (if needed):
+# Option A: Update existing certificate
+#   - Edit /etc/kubernetes/manifests/kube-apiserver.yaml
+#   - Add new IP to --tls-cert-file certificate
+# Option B: Regenerate certificates
+#   sudo kubeadm init phase certs apiserver --config /etc/kubernetes/kubeadm-config.yaml
+#
+# Fix kubelet configuration:
+# sudo vi /etc/kubernetes/kubelet.conf
+#   Update: server: https://NEW-CONTROL-PLANE-IP:6443
+#
+# Fix admin kubeconfig:
+# sudo vi /etc/kubernetes/admin.conf
+#   Update: server: https://NEW-CONTROL-PLANE-IP:6443
+#
+# Update user kubeconfig:
+# mkdir -p ~/.kube
+# sudo cp /etc/kubernetes/admin.conf ~/.kube/config
+# sudo chown $(id -u):$(id -g) ~/.kube/config
+# kubectl config set-cluster kubernetes --server=https://NEW-CONTROL-PLANE-IP:6443
+#
+# 4. RESTART SERVICES
+# ===================
+# Restart kubelet (this will restart static pods):
+# sudo systemctl restart kubelet
+# sudo systemctl status kubelet
+#
+# Wait for static pods to restart:
+# watch kubectl get pods -n kube-system
+#
+# 5. VERIFY CLUSTER HEALTH
+# ========================
+# Check node status:
+# kubectl get nodes
+# kubectl describe node <node-name>
+#
+# Check all pods are running:
+# kubectl get pods --all-namespaces
+#
+# Check cluster components:
+# kubectl get pods -n kube-system
+#
+# Verify API server connectivity:
+# kubectl cluster-info
+# kubectl get --raw /healthz
+#
+# Check etcd health (if accessible):
+# kubectl get --raw /healthz/etcd
+#
+# Example fix commands:
+# ====================
+# # Get current node IP
+# NODE_IP=$(hostname -I | awk '{print $1}')
+# ETCD_IP="<new-etcd-server-ip>"
+#
+# # Update API server manifest
+# sudo sed -i "s|--etcd-servers=https://.*:2379|--etcd-servers=https://${ETCD_IP}:2379|g" \
+#   /etc/kubernetes/manifests/kube-apiserver.yaml
+#
+# # Update kubelet config
+# sudo sed -i "s|server: https://.*:6443|server: https://${NODE_IP}:6443|g" \
+#   /etc/kubernetes/kubelet.conf
+#
+# # Update admin config
+# sudo sed -i "s|server: https://.*:6443|server: https://${NODE_IP}:6443|g" \
+#   /etc/kubernetes/admin.conf
+#
+# # Restart kubelet
+# sudo systemctl restart kubelet
+#
+# # Wait and verify
+# sleep 30
+# kubectl get nodes
+# kubectl get pods --all-namespaces
+
+---
+# Complete example of fixed kube-apiserver.yaml manifest:
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: NEW-CONTROL-PLANE-IP:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=NEW-CONTROL-PLANE-IP
+    - --etcd-servers=https://NEW-ETCD-IP:2379
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+    - --etcd-certfile=/etc/kubernetes/pki/etcd/apiserver-etcd-client.crt
+    - --etcd-keyfile=/etc/kubernetes/pki/etcd/apiserver-etcd-client.key
+    - --bind-address=0.0.0.0
+    - --secure-port=6443
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    # Certificate should include NEW-CONTROL-PLANE-IP in SANs
+    image: registry.k8s.io/kube-apiserver:v1.28.0
+    name: kube-apiserver
+    # ... other args ...
+  # ... rest of manifest ...
+

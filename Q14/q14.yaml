@@ -1,0 +1,88 @@
+# Q14: Kubeadm Cluster Migration Troubleshooting Lab
+# This file sets up a simulated broken cluster environment
+# In a real scenario, you would have a kubeadm cluster that was migrated
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-troubleshooting
+---
+# ConfigMap to simulate cluster configuration issues
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: cluster-troubleshooting
+data:
+  # Simulated kubeadm config that might have issues after migration
+  kubeadm-config.yaml: |
+    apiVersion: kubeadm.k8s.io/v1beta3
+    kind: ClusterConfiguration
+    etcd:
+      external:
+        endpoints:
+        - https://OLD-ETCD-IP:2379  # This needs to be updated
+        caFile: /etc/kubernetes/pki/etcd/ca.crt
+        certFile: /etc/kubernetes/pki/etcd/apiserver-etcd-client.crt
+        keyFile: /etc/kubernetes/pki/etcd/apiserver-etcd-client.key
+    apiServer:
+      certSANs:
+      - OLD-CONTROL-PLANE-IP  # This needs to be updated
+      - localhost
+      - 127.0.0.1
+    networking:
+      podSubnet: "10.244.0.0/16"
+      serviceSubnet: "10.96.0.0/12"
+  notes.txt: |
+    Cluster Migration Troubleshooting Notes:
+    ========================================
+    
+    Common issues after kubeadm cluster migration:
+    1. etcd endpoints pointing to old machine IP
+    2. API server certificate SANs missing new IP
+    3. kubelet configuration pointing to old API server
+    4. Static pod manifests with old IPs
+    5. kubeconfig files with old server addresses
+    
+    Files to check:
+    - /etc/kubernetes/manifests/*.yaml (static pods)
+    - /etc/kubernetes/kubelet.conf
+    - /etc/kubernetes/admin.conf
+    - /root/.kube/config
+    - /var/lib/kubelet/config.yaml
+    
+    Services to restart:
+    - kubelet
+    - containerd/docker (if needed)
+---
+# Deployment to simulate cluster components status
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-status-checker
+  namespace: cluster-troubleshooting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-status-checker
+  template:
+    metadata:
+      labels:
+        app: cluster-status-checker
+    spec:
+      containers:
+      - name: checker
+        image: bitnami/kubectl:latest
+        command: ["sleep", "infinity"]
+---
+# Note: In a real kubeadm cluster troubleshooting scenario, you would:
+# 1. SSH into the control plane node
+# 2. Check /etc/kubernetes/manifests/ for static pod manifests
+# 3. Check /etc/kubernetes/kubelet.conf for kubelet configuration
+# 4. Check /etc/kubernetes/admin.conf for admin kubeconfig
+# 5. Check etcd endpoints in API server manifest
+# 6. Check certificate SANs
+# 7. Update configurations with new IPs
+# 8. Restart kubelet service
+
