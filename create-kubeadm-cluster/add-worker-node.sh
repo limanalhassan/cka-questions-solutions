@@ -1,0 +1,253 @@
+#!/bin/bash
+# Script to add a worker node to an existing kubeadm cluster
+# This script should be run on the worker node machine
+
+set -e
+
+echo "=========================================="
+echo "Q14: Add Worker Node to Kubeadm Cluster"
+echo "=========================================="
+echo ""
+
+# Detect OS first (before root check, so we can show instructions for macOS/Windows)
+OS="unknown"
+OS_TYPE="unknown"
+
+# Check for macOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+    OS_TYPE="macos"
+    echo "📋 Detected OS: macOS"
+    echo ""
+    echo "⚠️  kubeadm requires Linux. macOS is not supported directly."
+    echo ""
+    echo "💡 This script must be run on a Linux machine (worker node)."
+    echo "   Use a VM or WSL2 as suggested in setup-kubeadm-cluster.sh"
+    exit 0
+fi
+
+# Check for Windows
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ -n "$WSL_DISTRO_NAME" ]]; then
+    OS="windows"
+    OS_TYPE="windows"
+    echo "📋 Detected OS: Windows"
+    echo ""
+    echo "⚠️  kubeadm requires Linux. Windows is not supported directly."
+    echo ""
+    echo "💡 This script must be run on a Linux machine (worker node)."
+    echo "   Use WSL2 or a Linux VM as suggested in setup-kubeadm-cluster.sh"
+    exit 0
+fi
+
+# Check for Linux
+# Now check if running as root (only needed for Linux)
+if [ "$OSTYPE" != "darwin"* ] && [ "$OSTYPE" != "msys" ] && [ "$OSTYPE" != "cygwin" ] && [ -z "$WSL_DISTRO_NAME" ]; then
+    if [ "$EUID" -ne 0 ]; then 
+        echo "⚠️  This script requires root/sudo privileges"
+        echo "   Please run with: sudo $0"
+        exit 1
+    fi
+fi
+
+# Check for Linux
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    OS=$ID
+    OS_TYPE="linux"
+    echo "📋 Detected OS: $OS (Linux)"
+    echo ""
+elif [ -f /etc/redhat-release ]; then
+    OS="rhel"
+    OS_TYPE="linux"
+    echo "📋 Detected OS: RHEL/CentOS (Linux)"
+    echo ""
+else
+    echo "⚠️  Cannot detect OS type."
+    echo "   Detected: $OSTYPE"
+    exit 1
+fi
+
+# Function to install kubeadm on Ubuntu/Debian
+install_kubeadm_ubuntu() {
+    echo "🔧 Installing kubeadm, kubelet, kubectl on Ubuntu/Debian..."
+    
+    apt-get update
+    apt-get install -y apt-transport-https ca-certificates curl gpg
+    
+    # Add Kubernetes repository
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+    
+    apt-get update
+    apt-get install -y kubelet kubeadm kubectl
+    apt-mark hold kubelet kubeadm kubectl
+    
+    echo "✅ Kubernetes tools installed"
+}
+
+# Function to install kubeadm on CentOS/RHEL
+install_kubeadm_centos() {
+    echo "🔧 Installing kubeadm, kubelet, kubectl on CentOS/RHEL..."
+    
+    # Add Kubernetes repository
+    cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+EOF
+    
+    yum install -y kubelet kubeadm kubectl
+    systemctl enable --now kubelet
+    
+    echo "✅ Kubernetes tools installed"
+}
+
+# Install containerd if not present
+install_containerd() {
+    if command -v containerd &> /dev/null; then
+        echo "✅ containerd already installed"
+        return
+    fi
+    
+    echo "🔧 Installing containerd..."
+    
+    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+        apt-get update
+        apt-get install -y containerd
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+        yum install -y containerd
+    fi
+    
+    # Configure containerd
+    mkdir -p /etc/containerd
+    containerd config default | tee /etc/containerd/config.toml
+    sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+    systemctl restart containerd
+    systemctl enable containerd
+    
+    echo "✅ containerd installed and configured"
+}
+
+# Configure system prerequisites
+configure_system() {
+    echo "🔧 Configuring system prerequisites..."
+    
+    # Disable swap
+    swapoff -a
+    sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    
+    # Load kernel modules
+    modprobe overlay
+    modprobe br_netfilter
+    
+    # Configure sysctl
+    cat <<EOF | tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+    sysctl --system
+    
+    echo "✅ System configured"
+}
+
+# Main execution
+main() {
+    echo "Starting worker node setup..."
+    echo ""
+    
+    # Check if already part of a cluster
+    if [ -f /etc/kubernetes/kubelet.conf ]; then
+        echo "⚠️  This node appears to already be part of a cluster."
+        echo "   Found: /etc/kubernetes/kubelet.conf"
+        echo ""
+        read -p "Do you want to reset and rejoin? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Cancelled."
+            exit 0
+        fi
+        echo "🔄 Resetting node..."
+        kubeadm reset -f || true
+    fi
+    
+    # Install Kubernetes tools (only for Linux)
+    if [ "$OS_TYPE" != "linux" ]; then
+        echo "❌ This script can only run on Linux."
+        exit 1
+    fi
+
+    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+        install_kubeadm_ubuntu
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "rocky" ] || [ "$OS" = "almalinux" ]; then
+        install_kubeadm_centos
+    else
+        echo "⚠️  Unsupported Linux distribution: $OS"
+        exit 1
+    fi
+    
+    # Install containerd
+    install_containerd
+    
+    # Configure system
+    configure_system
+    
+    # Add aliases
+    echo "alias k=kubectl" >> ~/.bashrc
+    echo "alias cl=clear" >> ~/.bashrc
+    
+    # Get join command from user
+    echo ""
+    echo "📋 To join this worker node to the cluster, you need a join command."
+    echo ""
+    echo "On the control plane node, run:"
+    echo "   kubeadm token create --print-join-command"
+    echo ""
+    echo "Or if you have the join command ready, paste it below."
+    echo ""
+    read -p "Enter the kubeadm join command (or press Enter to skip): " JOIN_CMD
+    
+    if [ -z "$JOIN_CMD" ]; then
+        echo ""
+        echo "⚠️  No join command provided."
+        echo ""
+        echo "To join this node later, run:"
+        echo "   sudo kubeadm join <control-plane-ip>:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>"
+        echo ""
+        echo "Get the join command from the control plane node:"
+        echo "   kubeadm token create --print-join-command"
+        echo ""
+        echo "✅ Worker node is ready to join. Run the join command when ready."
+        exit 0
+    fi
+    
+    # Execute join command
+    echo ""
+    echo "🚀 Joining worker node to cluster..."
+    echo "   Command: $JOIN_CMD"
+    echo ""
+    
+    eval $JOIN_CMD
+    
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo "✅ Worker node joined successfully!"
+        echo ""
+        echo "📋 Verify on control plane node:"
+        echo "   kubectl get nodes"
+        echo ""
+    else
+        echo ""
+        echo "❌ Failed to join worker node."
+        echo "   Please check the error messages above."
+        echo "   Verify the join command is correct and the control plane is accessible."
+        exit 1
+    fi
+}
+
+# Run main function
+main
+
